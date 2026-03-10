@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:open_tv/backend/settings_service.dart';
 import 'package:open_tv/backend/sql.dart';
 import 'package:open_tv/models/channel.dart';
 import 'package:open_tv/models/id_data.dart';
 import 'package:open_tv/models/media_type.dart';
+import 'package:open_tv/models/settings.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:media_kit_video/media_kit_video.dart' as mkvideo;
 import 'package:open_tv/select_dialog.dart';
@@ -20,8 +22,7 @@ class Player extends StatefulWidget {
 
 class _PlayerState extends State<Player> {
   late mk.Player player = mk.Player();
-  late mkvideo.VideoController videoController =
-      mkvideo.VideoController(player);
+  mkvideo.VideoController? videoController;
   late final GlobalKey<VideoState> key = GlobalKey<VideoState>();
   bool exiting = false;
   bool fill = false;
@@ -36,6 +37,20 @@ class _PlayerState extends State<Player> {
 
   Future<void> initAsync() async {
     player.setPlaylistMode(mk.PlaylistMode.none);
+    final settings = await SettingsService.getSettings();
+    final vo =
+        settings.videoOutput == 'direct' ? 'mediacodec_embed' : null;
+    videoController = mkvideo.VideoController(
+      player,
+      configuration: mkvideo.VideoControllerConfiguration(
+        vo: vo,
+        hwdec: settings.hwdec,
+        enableHardwareAcceleration: true,
+        androidAttachSurfaceAfterVideoParameters: true,
+      ),
+    );
+    setState(() {});
+    await _applyMpvProperties(settings);
     final seconds = widget.channel.mediaType == MediaType.movie
         ? await Sql.getPosition(widget.channel.id!)
         : null;
@@ -62,6 +77,23 @@ class _PlayerState extends State<Player> {
         onDisconnect();
       }
     }));
+  }
+
+  Future<void> _applyMpvProperties(Settings settings) async {
+    try {
+      final nativePlayer = player.platform as dynamic;
+      await nativePlayer.setProperty('profile', 'fast');
+      await nativePlayer.setProperty('deband', 'no');
+      await nativePlayer.setProperty('framedrop', 'vo');
+      await nativePlayer.setProperty('video-latency-hacks', 'yes');
+      await nativePlayer.setProperty('cache', 'yes');
+      await nativePlayer.setProperty(
+          'cache-secs', settings.bufferSeconds.toString());
+      await nativePlayer.setProperty('demuxer-max-bytes', '512MiB');
+      await nativePlayer.setProperty('demuxer-max-back-bytes', '50MiB');
+    } catch (e) {
+      debugPrint('Failed to set mpv properties: $e');
+    }
   }
 
   Future<void> _startPlayback(Duration? startPosition) async {
@@ -140,6 +172,7 @@ class _PlayerState extends State<Player> {
 
   @override
   Widget build(BuildContext context) {
+    final vc = videoController;
     return PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, result) {
@@ -147,15 +180,17 @@ class _PlayerState extends State<Player> {
         },
         child: Scaffold(
             backgroundColor: Colors.black,
-            body: MaterialVideoControlsTheme(
-              normal: getThemeData(context),
-              fullscreen: getThemeData(context),
-              child: Video(
-                key: key,
-                controller: videoController,
-                onExitFullscreen: () async => onExit(),
-              ),
-            )));
+            body: vc == null
+                ? const Center(child: CircularProgressIndicator())
+                : MaterialVideoControlsTheme(
+                    normal: getThemeData(context),
+                    fullscreen: getThemeData(context),
+                    child: Video(
+                      key: key,
+                      controller: vc,
+                      onExitFullscreen: () async => onExit(),
+                    ),
+                  )));
   }
 
   void onExit() async {

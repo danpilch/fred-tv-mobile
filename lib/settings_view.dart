@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:open_tv/backend/settings_service.dart';
@@ -120,6 +122,104 @@ class _SettingsState extends State<SettingsView> {
       context: context,
       builder: (builder) =>
           EditDialog(source: source, afterSave: reloadSources),
+    );
+  }
+
+  static final List<String> _hwdecOptions = Platform.isAndroid
+      ? const ['auto', 'mediacodec', 'mediacodec-copy', 'no']
+      : const ['auto', 'videotoolbox', 'videotoolbox-copy', 'no'];
+  static final List<String> _hwdecLabels = Platform.isAndroid
+      ? const ['Auto', 'MediaCodec (direct)', 'MediaCodec (copy-back)', 'Software only']
+      : const ['Auto', 'VideoToolbox (direct)', 'VideoToolbox (copy-back)', 'Software only'];
+  static const _videoOutputOptions = ['gpu', 'direct'];
+  static const _videoOutputLabels = [
+    'GPU rendered (default)',
+    'Direct (fast)',
+  ];
+  static const _bufferOptions = [5, 10, 30, 60];
+
+  String _hwdecLabel(String value) {
+    final idx = _hwdecOptions.indexOf(value);
+    return idx >= 0 ? _hwdecLabels[idx] : value;
+  }
+
+  Future<void> _showHwdecDialog(BuildContext context) async {
+    showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (BuildContext context) {
+        return SelectDialog(
+          title: "Hardware decode",
+          data: _hwdecOptions
+              .asMap()
+              .entries
+              .map((e) => IdData(id: e.key, data: _hwdecLabels[e.key]))
+              .toList(),
+          action: (idx) {
+            setState(() {
+              settings.hwdec = _hwdecOptions[idx];
+              updateSettings();
+            });
+            Navigator.of(context).pop();
+          },
+        );
+      },
+    );
+  }
+
+  String _videoOutputLabel(String value) {
+    final idx = _videoOutputOptions.indexOf(value);
+    return idx >= 0 ? _videoOutputLabels[idx] : value;
+  }
+
+  Future<void> _showVideoOutputDialog(BuildContext context) async {
+    showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (BuildContext context) {
+        return SelectDialog(
+          title: "Video output",
+          data: _videoOutputOptions
+              .asMap()
+              .entries
+              .map((e) =>
+                  IdData(id: e.key, data: _videoOutputLabels[e.key]))
+              .toList(),
+          action: (idx) {
+            setState(() {
+              settings.videoOutput = _videoOutputOptions[idx];
+              updateSettings();
+            });
+            Navigator.of(context).pop();
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _showBufferDialog(BuildContext context) async {
+    showDialog(
+      barrierDismissible: true,
+      context: context,
+      builder: (BuildContext context) {
+        return SelectDialog(
+          title: "Buffer size",
+          data: _bufferOptions
+              .asMap()
+              .entries
+              .map((e) => IdData(
+                  id: e.key,
+                  data: "${e.value} seconds${e.value == 10 ? ' (default)' : ''}"))
+              .toList(),
+          action: (idx) {
+            setState(() {
+              settings.bufferSeconds = _bufferOptions[idx];
+              updateSettings();
+            });
+            Navigator.of(context).pop();
+          },
+        );
+      },
     );
   }
 
@@ -453,6 +553,23 @@ class _SettingsState extends State<SettingsView> {
                         ),
                       ],
                     ),
+                  ),
+                  ListTile(
+                    title: const Text("Hardware decode"),
+                    subtitle: Text(_hwdecLabel(settings.hwdec)),
+                    onTap: () async => await _showHwdecDialog(context),
+                  ),
+                  ListTile(
+                    title: const Text("Video output"),
+                    subtitle: Text(_videoOutputLabel(settings.videoOutput)),
+                    onTap: () async =>
+                        await _showVideoOutputDialog(context),
+                  ),
+                  ListTile(
+                    title: const Text("Buffer size"),
+                    subtitle:
+                        Text("${settings.bufferSeconds} seconds"),
+                    onTap: () async => await _showBufferDialog(context),
                   ),
                   const Divider(),
                   Row(

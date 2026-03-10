@@ -12,6 +12,9 @@ const showMovies = "showMovies";
 const showSeries = "showSeries";
 const lastSeenVersion = "lastSeenVersion";
 const forceTvMode = "forceTVMode";
+const hwdecKey = "hwdec";
+const videoOutputKey = "videoOutput";
+const bufferSecondsKey = "bufferSeconds";
 
 class SettingsService {
   static Future<Settings> getSettings() async {
@@ -41,6 +44,18 @@ class SettingsService {
     if (forceTV != null) {
       settings.forceTVMode = int.parse(forceTV) == 1;
     }
+    var hwdecVal = settingsMap[hwdecKey];
+    if (hwdecVal != null) {
+      settings.hwdec = hwdecVal;
+    }
+    var videoOut = settingsMap[videoOutputKey];
+    if (videoOut != null) {
+      settings.videoOutput = videoOut;
+    }
+    var buffer = settingsMap[bufferSecondsKey];
+    if (buffer != null) {
+      settings.bufferSeconds = int.parse(buffer);
+    }
     return settings;
   }
 
@@ -53,6 +68,9 @@ class SettingsService {
     settingsMap[showMovies] = (settings.showMovies ? 1 : 0).toString();
     settingsMap[showSeries] = (settings.showSeries ? 1 : 0).toString();
     settingsMap[forceTvMode] = (settings.forceTVMode ? 1 : 0).toString();
+    settingsMap[hwdecKey] = settings.hwdec;
+    settingsMap[videoOutputKey] = settings.videoOutput;
+    settingsMap[bufferSecondsKey] = settings.bufferSeconds.toString();
     await Sql.updateSettings(settingsMap);
   }
 
